@@ -84,7 +84,7 @@ Original here:
 	https://github.com/ethereum/eth2.0-specs/pull/576#issue-250741806
 
 Main differences, implemented by @protolambda:
-    - User can supply input slice to shuffle, simple provide [0,1,2,3,4, ...] to get a list of shuffled indices.
+    - User can supply input slice to shuffle, simple provide [0,1,2,3,4, ...] to get a list of cleanly shuffled indices.
     - Input slice is shuffled (hence no return value), no new array is allocated
     - Allocations as minimal as possible: only a very minimal buffer for hashing
 	  (this should be allocated on the stack, compiler will find it with escape analysis).
@@ -95,7 +95,7 @@ Main differences, implemented by @protolambda:
 
  */
 
-func ShuffleList(hashFn HashFn, input []interface{}, rounds uint64, seed [32]byte) {
+func ShuffleList(hashFn HashFn, input []uint64, rounds uint64, seed [32]byte) {
 	listSize := uint64(len(input))
 	buf := make([]byte, 32 + 5 + 1, 32 + 5 + 1)
 	for r := uint64(0); r < rounds; r++ {
