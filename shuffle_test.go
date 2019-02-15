@@ -5,14 +5,57 @@ import (
 	"testing"
 )
 
-func BenchPermuteIndex(listSize uint64, b *testing.B) {
+func getStandardHashFn() HashFn {
 	hash := sha3.New256()
 	hashFn := func(in []byte) []byte {
 		hash.Reset()
 		hash.Write(in)
 		return hash.Sum(nil)
 	}
+	return hashFn
+}
 
+func TestPermuteIndex(t *testing.T) {
+	hashFn := getStandardHashFn()
+	// "random" seed for testing. Can be any 32 bytes.
+	seed := [32]byte{123, 42}
+	// rounds of shuffling, constant in spec
+	rounds := uint64(90)
+	//
+	listSize := uint64(4000000)
+	// TODO parametrize
+	i := uint64(10)
+	permuted := PermuteIndex(hashFn, rounds, i % listSize, listSize, seed)
+	// TODO check each parametrized number for correct shuffled output?
+	if permuted != 123 {
+		t.Fail()
+	}
+}
+
+func TestUnpermuteIndex(t *testing.T) {
+	// TODO
+}
+
+func TestDoUndoPermuteIndex(t *testing.T) {
+	// TODO
+}
+
+func TestShuffleList(t *testing.T) {
+	// TODO
+}
+
+func TestUnshuffleList(t *testing.T) {
+	// TODO
+}
+
+func TestDoUndoShuffleList(t *testing.T) {
+	// TODO
+}
+
+// TODO also test with test vectors from ETH 2.0 tests repo.
+
+func BenchPermuteIndex(listSize uint64, b *testing.B) {
+	hashFn := getStandardHashFn()
 	// "random" seed for testing. Can be any 32 bytes.
 	seed := [32]byte{123, 42}
 	// rounds of shuffling, constant in spec
@@ -24,13 +67,7 @@ func BenchPermuteIndex(listSize uint64, b *testing.B) {
 }
 
 func BenchIndexComparison(listSize uint64, b *testing.B) {
-	hash := sha3.New256()
-	hashFn := func(in []byte) []byte {
-		hash.Reset()
-		hash.Write(in)
-		return hash.Sum(nil)
-	}
-
+	hashFn := getStandardHashFn()
 	// "random" seed for testing. Can be any 32 bytes.
 	seed := [32]byte{123, 42}
 	// rounds of shuffling, constant in spec
@@ -44,13 +81,7 @@ func BenchIndexComparison(listSize uint64, b *testing.B) {
 }
 
 func BenchShuffleList(listSize uint64, b *testing.B) {
-	hash := sha3.New256()
-	hashFn := func(in []byte) []byte {
-		hash.Reset()
-		hash.Write(in)
-		return hash.Sum(nil)
-	}
-
+	hashFn := getStandardHashFn()
 	// "random" seed for testing. Can be any 32 bytes.
 	seed := [32]byte{123, 42}
 	// list to test
