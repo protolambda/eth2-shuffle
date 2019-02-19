@@ -78,16 +78,16 @@ func TestAgainstSpec(t *testing.T) {
 				seed := [32]byte{}
 				copy(seed[:], parsedSeed)
 				// run every test case in parallel. Input data is copied, for loop won't mess it up.
-				//TODO st.Parallel()
+				st.Parallel()
 
 				hashFn := getStandardHashFn()
 
 				st.Run("PermuteIndex", func (it *testing.T) {
-					for i, o := range shuffleOut {
+					for i := uint64(0); i < listSize; i++ {
 						// calculate the permuted index. (i.e. shuffle single index)
-						permuted := PermuteIndex(hashFn, rounds, shuffleIn[i], listSize, seed)
+						permuted := PermuteIndex(hashFn, rounds, i, listSize, seed)
 						// compare with expectation
-						if permuted != o {
+						if shuffleIn[i] != shuffleOut[permuted] {
 							it.FailNow()
 						}
 					}
@@ -95,43 +95,43 @@ func TestAgainstSpec(t *testing.T) {
 
 				st.Run("UnpermuteIndex", func (it *testing.T) {
 					// for each index, test un-permuting
-					for i, o := range shuffleOut {
+					for i := uint64(0); i < listSize; i++ {
 						// calculate the un-permuted index. (i.e. un-shuffle single index)
-						unpermuted := UnpermuteIndex(hashFn, rounds, o, listSize, seed)
+						unpermuted := UnpermuteIndex(hashFn, rounds, i, listSize, seed)
 						// compare with expectation
-						if unpermuted != shuffleIn[i] {
+						if shuffleOut[i] != shuffleIn[unpermuted] {
 							it.FailNow()
 						}
 					}
 				})
 
-				//st.Run("ShuffleList", func (it *testing.T) {
-				//	// create input, this slice will be shuffled.
-				//	testInput := make([]uint64, listSize, listSize)
-				//	copy(testInput, shuffleIn)
-				//	// shuffle!
-				//	ShuffleList(hashFn, testInput, rounds, seed)
-				//	// compare shuffled list to expected output
-				//	for i, o := range shuffleOut {
-				//		if testInput[i] != o {
-				//			it.FailNow()
-				//		}
-				//	}
-				//})
-				//
-				//st.Run("UnshuffleList", func (it *testing.T) {
-				//	// create input, this slice will be un-shuffled.
-				//	testInput := make([]uint64, listSize, listSize)
-				//	copy(testInput, shuffleOut)
-				//	// un-shuffle!
-				//	UnshuffleList(hashFn, testInput, rounds, seed)
-				//	// compare shuffled list to original input
-				//	for i, o := range testInput {
-				//		if shuffleIn[i] != o {
-				//			it.FailNow()
-				//		}
-				//	}
-				//})
+				st.Run("ShuffleList", func (it *testing.T) {
+					// create input, this slice will be shuffled.
+					testInput := make([]uint64, listSize, listSize)
+					copy(testInput, shuffleIn)
+					// shuffle!
+					ShuffleList(hashFn, testInput, rounds, seed)
+					// compare shuffled list to expected output
+					for i := uint64(0); i < listSize; i++ {
+						if testInput[i] != shuffleOut[i] {
+							it.FailNow()
+						}
+					}
+				})
+
+				st.Run("UnshuffleList", func (it *testing.T) {
+					// create input, this slice will be un-shuffled.
+					testInput := make([]uint64, listSize, listSize)
+					copy(testInput, shuffleOut)
+					// un-shuffle!
+					UnshuffleList(hashFn, testInput, rounds, seed)
+					// compare shuffled list to original input
+					for i := uint64(0); i < listSize; i++ {
+						if testInput[i] != shuffleIn[i] {
+							it.FailNow()
+						}
+					}
+				})
 			}
 		}(uint64(listSize), inputItems, expectedItems))
 	}
