@@ -23,12 +23,19 @@ func PermuteIndex(hashFn HashFn, rounds uint64, index uint64, listSize uint64, s
 
 // Inverse of PermuteIndex, returns original index when given the same shuffling context parameters and permuted index.
 func UnpermuteIndex(hashFn HashFn, rounds uint64, index uint64, listSize uint64, seed [32]byte) uint64 {
-	return innerPermuteIndex(hashFn, rounds, index, listSize, seed, true)
+	return innerPermuteIndex(hashFn, rounds, index, listSize, seed, false)
 }
 
 func innerPermuteIndex(hashFn HashFn, rounds uint64, index uint64, listSize uint64, seed [32]byte, dir bool) uint64 {
-	buf := make([]byte, 32+5+1, 32+5+1)
-	for r := uint64(0); r < rounds; {
+	if rounds == 0 {
+		return index
+	}
+	buf := make([]byte, 32+1+4, 32+1+4)
+	r := uint64(0)
+	if !dir {
+		r = rounds - 1
+	}
+	for {
 		// spec: pivot = bytes_to_int(hash(seed + int_to_bytes1(round))[0:8]) % list_size
 		copy(buf[:32], seed[:])
 		buf[32] = byte(r)
@@ -50,8 +57,8 @@ func innerPermuteIndex(hashFn HashFn, rounds uint64, index uint64, listSize uint
 		// - round number is still in 33
 		// - mix in the position for randomness, except the last byte of it,
 		//     which will be used later to select a bit from the resulting hash.
-		binary.LittleEndian.PutUint32(buf[32+1:32+1+5], uint32(position>>8))
-		source := hashFn(buf)
+		binary.LittleEndian.PutUint32(buf[32+1:32+1+4], uint32(position>>8))
+		source := hashFn(buf[:32+1+4])
 		// spec: byte = source[(position % 256) // 8]
 		// Effectively keep the first 5 bits of the byte value of the position,
 		//  and use it to retrieve one of the 32 (= 2^5) bytes of the hash.
@@ -68,7 +75,13 @@ func innerPermuteIndex(hashFn HashFn, rounds uint64, index uint64, listSize uint
 		if dir {
 			// -> shuffle
 			r++
+			if r == rounds {
+				break
+			}
 		} else {
+			if r == 0 {
+				break
+			}
 			// -> un-shuffle
 			r--
 		}
@@ -126,9 +139,20 @@ func UnshuffleList(hashFn HashFn, input []uint64, rounds uint64, seed [32]byte) 
 
 // Shuffles or unshuffles, depending on the `dir` (true for shuffling, false for unshuffling
 func innerShuffleList(hashFn HashFn, input []uint64, rounds uint64, seed [32]byte, dir bool) {
+	if len(input) <= 1 {
+		// nothing to (un)shuffle
+		return
+	}
+	if rounds == 0 {
+		return
+	}
 	listSize := uint64(len(input))
-	buf := make([]byte, 32+5+1, 32+5+1)
-	for r := uint64(0); r < rounds; {
+	buf := make([]byte, 32+1+4, 32+1+4)
+	r := uint64(0)
+	if !dir {
+		r = rounds - 1
+	}
+	for {
 		// spec: pivot = bytes_to_int(hash(seed + int_to_bytes1(round))[0:8]) % list_size
 		copy(buf[:32], seed[:])
 		buf[32] = byte(r)
@@ -145,7 +169,7 @@ func innerShuffleList(hashFn HashFn, input []uint64, rounds uint64, seed [32]byt
 		// Since we are iterating through the "positions" in order, we can just repeat the hash every 256th position.
 		// No need to pre-compute every possible hash for efficiency like in the example code.
 		// We only need it consecutively (we are going through each in reverse order however, but same thing)
-		binary.LittleEndian.PutUint32(buf[32+1:32+1+5], uint32(pivot>>8))
+		binary.LittleEndian.PutUint32(buf[32+1:32+1+4], uint32(pivot>>8))
 		source := hashFn(buf)
 		byteV := source[(pivot&0xff)>>3]
 		for i, j := uint64(0), pivot; i < mirror; i, j = i+1, j-1 {
@@ -153,7 +177,7 @@ func innerShuffleList(hashFn HashFn, input []uint64, rounds uint64, seed [32]byt
 			// Every 256th bit (aligned to j).
 			if j&0xff == 0xff {
 				// just overwrite the last part of the buffer, reuse the start (seed, round)
-				binary.LittleEndian.PutUint32(buf[32+1:32+1+5], uint32(j>>8))
+				binary.LittleEndian.PutUint32(buf[32+1:32+1+4], uint32(j>>8))
 				source = hashFn(buf)
 			}
 			// Same trick with byte retrieval. Only every 8th.
@@ -170,7 +194,7 @@ func innerShuffleList(hashFn HashFn, input []uint64, rounds uint64, seed [32]byt
 		// Now repeat, but for the part after the pivot.
 		mirror = (pivot + listSize + 1) >> 1
 		end := listSize - 1
-		binary.LittleEndian.PutUint32(buf[32+1:32+1+5], uint32(end>>8))
+		binary.LittleEndian.PutUint32(buf[32+1:32+1+4], uint32(end>>8))
 		source = hashFn(buf)
 		byteV = source[(end&0xff)>>3]
 		for i, j := pivot+1, end; i < mirror; i, j = i+1, j-1 {
@@ -180,7 +204,7 @@ func innerShuffleList(hashFn HashFn, input []uint64, rounds uint64, seed [32]byt
 			// Every 256th bit (aligned to j).
 			if j&0xff == 0xff {
 				// just overwrite the last part of the buffer, reuse the start (seed, round)
-				binary.LittleEndian.PutUint32(buf[32+1:32+1+5], uint32(j>>8))
+				binary.LittleEndian.PutUint32(buf[32+1:32+1+4], uint32(j>>8))
 				source = hashFn(buf)
 			}
 			// Same trick with byte retrieval. Only every 8th.
@@ -199,7 +223,13 @@ func innerShuffleList(hashFn HashFn, input []uint64, rounds uint64, seed [32]byt
 		if dir {
 			// -> shuffle
 			r++
+			if r == rounds {
+				break
+			}
 		} else {
+			if r == 0 {
+				break
+			}
 			// -> un-shuffle
 			r--
 		}

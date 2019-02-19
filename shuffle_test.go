@@ -1,12 +1,18 @@
 package eth2_shuffle
 
 import (
-	"golang.org/x/crypto/sha3"
+	"crypto/sha256"
+	"encoding/csv"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	"testing"
 )
 
 func getStandardHashFn() HashFn {
-	hash := sha3.New256()
+	hash := sha256.New()
 	hashFn := func(in []byte) []byte {
 		hash.Reset()
 		hash.Write(in)
@@ -15,44 +21,121 @@ func getStandardHashFn() HashFn {
 	return hashFn
 }
 
-func TestPermuteIndex(t *testing.T) {
-	hashFn := getStandardHashFn()
-	// "random" seed for testing. Can be any 32 bytes.
-	seed := [32]byte{123, 42}
-	// rounds of shuffling, constant in spec
+func readEncodedListInput(input string, requiredLen int64, lineIndex int) ([]uint64, error) {
+	var itemStrs []string
+	if input != "" {
+		itemStrs = strings.Split(input, ":")
+	} else {
+		itemStrs = make([]string, 0)
+	}
+	if int64(len(itemStrs)) != requiredLen {
+		return nil, fmt.Errorf("expected outputs length does not match list size on line %d\n", lineIndex)
+	}
+	items := make([]uint64, len(itemStrs), len(itemStrs))
+	for i, itemStr := range itemStrs {
+		item, err := strconv.ParseInt(itemStr, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("expected list item on line %d, item %d cannot be parsed\n", lineIndex, i)
+		}
+		items[i] = uint64(item)
+	}
+	return items, nil
+}
+
+func TestAgainstSpec(t *testing.T) {
+	// Open CSV file
+	f, err := os.Open("spec/tests.csv")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	// Read File into a Variable
+	lines, err := csv.NewReader(f).ReadAll()
+	if err != nil {
+		panic(err)
+	}
+
+	// constant in spec
 	rounds := uint64(90)
-	//
-	listSize := uint64(4000000)
-	// TODO parametrize
-	i := uint64(10)
-	permuted := PermuteIndex(hashFn, rounds, i % listSize, listSize, seed)
-	// TODO check each parametrized number for correct shuffled output?
-	if permuted != 123 {
-		t.Fail()
+
+	// Loop through lines & turn into object
+	for lineIndex, line := range lines {
+
+		parsedSeed, err := hex.DecodeString(line[0])
+		if err != nil {
+			t.Fatalf("seed on line %d cannot be parsed\n", lineIndex)
+		}
+		listSize, err := strconv.ParseInt(line[1], 10, 32)
+		if err != nil {
+			t.Fatalf("list size on line %d cannot be parsed\n", lineIndex)
+		}
+		inputItems, err := readEncodedListInput(line[2], listSize, lineIndex)
+		expectedItems, err := readEncodedListInput(line[3], listSize, lineIndex)
+
+		t.Run("", func(listSize uint64, shuffleIn []uint64, shuffleOut []uint64) func(st *testing.T) {
+			return func(st *testing.T) {
+				seed := [32]byte{}
+				copy(seed[:], parsedSeed)
+				// run every test case in parallel. Input data is copied, for loop won't mess it up.
+				//TODO st.Parallel()
+
+				hashFn := getStandardHashFn()
+
+				st.Run("PermuteIndex", func (it *testing.T) {
+					for i, o := range shuffleOut {
+						// calculate the permuted index. (i.e. shuffle single index)
+						permuted := PermuteIndex(hashFn, rounds, shuffleIn[i], listSize, seed)
+						// compare with expectation
+						if permuted != o {
+							it.FailNow()
+						}
+					}
+				})
+
+				st.Run("UnpermuteIndex", func (it *testing.T) {
+					// for each index, test un-permuting
+					for i, o := range shuffleOut {
+						// calculate the un-permuted index. (i.e. un-shuffle single index)
+						unpermuted := UnpermuteIndex(hashFn, rounds, o, listSize, seed)
+						// compare with expectation
+						if unpermuted != shuffleIn[i] {
+							it.FailNow()
+						}
+					}
+				})
+
+				//st.Run("ShuffleList", func (it *testing.T) {
+				//	// create input, this slice will be shuffled.
+				//	testInput := make([]uint64, listSize, listSize)
+				//	copy(testInput, shuffleIn)
+				//	// shuffle!
+				//	ShuffleList(hashFn, testInput, rounds, seed)
+				//	// compare shuffled list to expected output
+				//	for i, o := range shuffleOut {
+				//		if testInput[i] != o {
+				//			it.FailNow()
+				//		}
+				//	}
+				//})
+				//
+				//st.Run("UnshuffleList", func (it *testing.T) {
+				//	// create input, this slice will be un-shuffled.
+				//	testInput := make([]uint64, listSize, listSize)
+				//	copy(testInput, shuffleOut)
+				//	// un-shuffle!
+				//	UnshuffleList(hashFn, testInput, rounds, seed)
+				//	// compare shuffled list to original input
+				//	for i, o := range testInput {
+				//		if shuffleIn[i] != o {
+				//			it.FailNow()
+				//		}
+				//	}
+				//})
+			}
+		}(uint64(listSize), inputItems, expectedItems))
 	}
 }
-
-func TestUnpermuteIndex(t *testing.T) {
-	// TODO
-}
-
-func TestDoUndoPermuteIndex(t *testing.T) {
-	// TODO
-}
-
-func TestShuffleList(t *testing.T) {
-	// TODO
-}
-
-func TestUnshuffleList(t *testing.T) {
-	// TODO
-}
-
-func TestDoUndoShuffleList(t *testing.T) {
-	// TODO
-}
-
-// TODO also test with test vectors from ETH 2.0 tests repo.
 
 func BenchPermuteIndex(listSize uint64, b *testing.B) {
 	hashFn := getStandardHashFn()
