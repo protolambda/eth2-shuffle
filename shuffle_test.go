@@ -47,7 +47,7 @@ func TestAgainstSpec(t *testing.T) {
 	}
 
 	// constant in spec
-	rounds := uint64(90)
+	rounds := uint8(90)
 
 	// Loop through lines & turn into object
 	for lineIndex, line := range lines {
