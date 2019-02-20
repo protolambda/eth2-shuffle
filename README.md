@@ -33,14 +33,16 @@ With `-test.benchtime=10s`:
 goos: linux
 goarch: amd64
 pkg: eth2-shuffle
-BenchmarkPermuteIndex/PermuteIndex_4000000-8         	  300000	     50248 ns/op
-BenchmarkPermuteIndex/PermuteIndex_40000-8           	  300000	     49866 ns/op
-BenchmarkPermuteIndex/PermuteIndex_400-8             	  300000	     49470 ns/op
-BenchmarkIndexComparison/Indexwise_ShuffleList_40000-8         	      10	1980394380 ns/op
-BenchmarkIndexComparison/Indexwise_ShuffleList_400-8           	    1000	  19828509 ns/op
-BenchmarkShuffleList/ShuffleList_4000000-8                     	      10	1269068531 ns/op
-BenchmarkShuffleList/ShuffleList_40000-8                       	    1000	  12156986 ns/op
-BenchmarkShuffleList/ShuffleList_400-8                         	  100000	    189169 ns/op
+
+BenchmarkPermuteIndex/PermuteIndex_4000000-8         	  300000	     49013 ns/op
+BenchmarkPermuteIndex/PermuteIndex_40000-8           	  300000	     48936 ns/op
+BenchmarkPermuteIndex/PermuteIndex_400-8             	  300000	     48709 ns/op
+BenchmarkIndexComparison/Indexwise_ShuffleList_40000-8         	      10	1947872791 ns/op
+BenchmarkIndexComparison/Indexwise_ShuffleList_400-8           	    1000	  19435826 ns/op
+BenchmarkShuffleList/ShuffleList_4000000-8                     	      10	1253702761 ns/op
+BenchmarkShuffleList/ShuffleList_40000-8                       	    1000	  12152166 ns/op
+BenchmarkShuffleList/ShuffleList_400-8                         	  100000	    191813 ns/op
+
 ```
 
 ### `PermuteIndex_X`
