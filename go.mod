@@ -1,1 +1,1 @@
-module protolambda.com/eth2-shuffle
+module github.com/protolambda/eth2-shuffle
