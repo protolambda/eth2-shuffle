@@ -164,16 +164,48 @@ func innerShuffleList(hashFn HashFn, input []uint64, rounds uint8, seed [32]byte
 	if rounds == 0 {
 		return
 	}
+
 	listSize := uint64(len(input))
-	buf := make([]byte, hTotalSize, hTotalSize)
-	r := uint8(0)
-	if !dir {
-		// Start at last round.
-		// Iterating through the rounds in reverse, un-swaps everything, effectively un-shuffling the list.
-		r = rounds - 1
+
+	// TODO non 90 div
+	workers := uint8(9)
+
+	workload := rounds / workers
+	perms := make([][]uint64, workers, workers)
+	for i := uint8(0); i < workers; i++ {
+		var start, end uint8
+		if !dir {
+			start = i * workload
+			end = start + workload
+		} else {
+			end = rounds - (i * workload)
+			start = end - workload
+		}
+		perms[i] = getListPermutation(hashFn, start, end, seed[:], listSize)
 	}
+
+	// TODO: fix permutation folding
+	for p := len(perms)-1; p >= 0; p-- {
+		for i := uint64(0); i < listSize; i++ {
+			input[i] = perms[p][input[i]]
+		}
+	}
+}
+
+func getListPermutation(hashFn HashFn, startRound uint8, endRound uint8, seed []byte, listSize uint64) []uint64 {
+
+	permutation := make([]uint64, listSize, listSize)
+	for i := uint64(0); i < listSize; i++ {
+		permutation[i] = i
+	}
+	r := startRound
+	dir := true
+	if endRound < startRound {
+		dir = false
+	}
+	buf := make([]byte, hTotalSize, hTotalSize)
 	// Seed is always the first 32 bytes of the hash input, we never have to change this part of the buffer.
-	copy(buf[:hSeedSize], seed[:])
+	copy(buf[:hSeedSize], seed)
 	for {
 		// spec: pivot = bytes_to_int(hash(seed + int_to_bytes1(round))[0:8]) % list_size
 		// This is the "int_to_bytes1(round)", appended to the seed.
@@ -220,7 +252,7 @@ func innerShuffleList(hashFn HashFn, input []uint64, rounds uint8, seed [32]byte
 
 			if bitV == 1 {
 				// swap the pair items
-				input[i], input[j] = input[j], input[i]
+				permutation[i], permutation[j] = permutation[j], permutation[i]
 			}
 		}
 		// Now repeat, but for the part after the pivot.
@@ -250,7 +282,7 @@ func innerShuffleList(hashFn HashFn, input []uint64, rounds uint8, seed [32]byte
 
 			if bitV == 1 {
 				// swap the pair items
-				input[i], input[j] = input[j], input[i]
+				permutation[i], permutation[j] = permutation[j], permutation[i]
 			}
 			//--------------------------------------------
 		}
@@ -258,15 +290,16 @@ func innerShuffleList(hashFn HashFn, input []uint64, rounds uint8, seed [32]byte
 		if dir {
 			// -> shuffle
 			r++
-			if r == rounds {
+			if r == endRound {
 				break
 			}
 		} else {
-			if r == 0 {
+			if r == endRound {
 				break
 			}
 			// -> un-shuffle
 			r--
 		}
 	}
+	return permutation
 }
