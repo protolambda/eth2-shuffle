@@ -168,24 +168,36 @@ func innerShuffleList(hashFn HashFn, input []uint64, rounds uint8, seed [32]byte
 	listSize := uint64(len(input))
 
 	// TODO non 90 div
-	workers := uint8(9)
+	workers := uint8(8)
 
-	workload := rounds / workers
+	workload := (rounds + workers - 1) / workers
 	perms := make([][]uint64, workers, workers)
-	for i := uint8(0); i < workers; i++ {
-		var start, end uint8
-		if !dir {
-			start = i * workload
-			end = start + workload
-		} else {
-			end = rounds - (i * workload)
-			start = end - workload
+	if dir {
+		work := uint8(0)
+		for i := uint8(0); i < workers; i++ {
+			start := work
+			end := start + workload
+			work += workload
+			if work > rounds {
+				end = rounds
+			}
+			perms[i] = getListPermutation(hashFn, uint8(start), uint8(end), seed[:], listSize)
 		}
-		perms[i] = getListPermutation(hashFn, start, end, seed[:], listSize)
+	} else {
+		work := uint8(0)
+		for i := uint8(0); i < workers; i++ {
+			start := rounds - work
+			end := start - workload
+			work += workload
+			if work > rounds {
+				end = 0
+			}
+			perms[i] = getListPermutation(hashFn, uint8(start), uint8(end), seed[:], listSize)
+		}
 	}
 
 	// TODO: fix permutation folding
-	for p := len(perms)-1; p >= 0; p-- {
+	for p := 0; p < len(perms); p++ {
 		for i := uint64(0); i < listSize; i++ {
 			input[i] = perms[p][input[i]]
 		}
